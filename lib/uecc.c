@@ -33,6 +33,7 @@
 #include "uECC_vli.h"
 #include "picotls.h"
 #include "picotls/minicrypto.h"
+#include "picotls/asn1.h"
 
 #define TYPE_UNCOMPRESSED_PUBLIC_KEY 4
 
@@ -184,6 +185,130 @@ int ptls_minicrypto_init_secp256r1sha256_sign_certificate(ptls_minicrypto_secp25
         return PTLS_ERROR_INCOMPATIBLE_KEY;
 
     self->super.cb = secp256r1sha256_sign;
+    memcpy(self->key, key.base, sizeof(self->key));
+
+    return 0;
+}
+
+size_t ptls_minicrypto_asn1_decode_ecdsa_signature(ptls_iovec_t raw_sig, ptls_iovec_t encoded_sig,
+                                                   int *decode_error, ptls_minicrypto_log_ctx_t *log_ctx)
+{
+    uint8_t *bytes = encoded_sig.base;
+    size_t bytes_max = encoded_sig.len;
+    uint32_t part_size = raw_sig.len >> 1;
+    uint32_t seq_length;
+    size_t last_byte;
+    uint32_t r_length, s_length;
+    size_t r_last, s_last;
+
+    /* read the ASN1 messages */
+    size_t byte_index = 0;
+
+    /* start with sequence */
+    byte_index = ptls_asn1_get_expected_type_and_length(bytes, bytes_max, byte_index, 0x30, &seq_length, NULL, &last_byte,
+                                                        decode_error, log_ctx);
+
+    if (*decode_error == 0 && bytes_max != last_byte) {
+        byte_index = ptls_asn1_error_message("Length larger than message", bytes_max, byte_index, 0, log_ctx);
+        *decode_error = PTLS_ERROR_BER_EXCESSIVE_LENGTH;
+    }
+
+    if (*decode_error == 0) {
+        /* read r */
+        byte_index = ptls_asn1_get_expected_type_and_length(bytes, last_byte, byte_index, 0x02, &r_length, NULL, &r_last,
+                                                            decode_error, log_ctx);
+
+        if (*decode_error == 0 && r_length > part_size + 1) {
+            *decode_error = PTLS_ERROR_BER_EXCESSIVE_LENGTH;
+        } else {
+            uint32_t diff = r_length > part_size ? r_length - part_size : 0;
+            uint32_t size = r_length > part_size ? part_size : r_length;
+            memcpy(raw_sig.base, bytes + byte_index + diff, size);
+        }
+    }
+
+    byte_index = r_last;
+
+    if (*decode_error == 0) {
+        /* read s */
+        byte_index = ptls_asn1_get_expected_type_and_length(bytes, last_byte, byte_index, 0x02, &s_length, NULL, &s_last,
+                                                            decode_error, log_ctx);
+
+        if (*decode_error == 0 && s_length > part_size + 1) {
+            *decode_error = PTLS_ERROR_BER_EXCESSIVE_LENGTH;
+        } else {
+            uint32_t diff = s_length > part_size ? s_length - part_size : 0;
+            uint32_t size = s_length > part_size ? part_size : s_length;
+            memcpy(raw_sig.base + part_size, bytes + byte_index + diff, size);
+        }
+    }
+
+    return byte_index;
+}
+
+static int secp256r1sha256_verify_sign(void *verify_ctx, uint16_t algo, ptls_iovec_t data, ptls_iovec_t signature) {
+    uint8_t hash[32], raw_sig_data[64], *key = verify_ctx + 1;
+    ptls_iovec_t raw_sig = {raw_sig_data, sizeof(raw_sig_data)};
+
+    if (algo != PTLS_SIGNATURE_ECDSA_SECP256R1_SHA256)
+        return PTLS_ALERT_HANDSHAKE_FAILURE;
+
+    int decode_error = 0;
+    ptls_minicrypto_asn1_decode_ecdsa_signature(raw_sig, signature, &decode_error, NULL);
+    if (decode_error != 0)
+        return PTLS_ALERT_DECRYPT_ERROR;
+
+    {
+        cf_sha256_context ctx;
+        cf_sha256_init(&ctx);
+        cf_sha256_update(&ctx, data.base, data.len);
+        cf_sha256_digest_final(&ctx, hash);
+        ptls_clear_memory(&ctx, sizeof(ctx));
+    }
+
+    if (!uECC_verify(key, hash, sizeof(hash), raw_sig_data, uECC_secp256r1())) {
+        return PTLS_ALERT_DECRYPT_ERROR;
+    }
+
+    return 0;
+}
+
+static int secp256r1sha256_verify(ptls_verify_certificate_t *_self, ptls_t *tls, const char *server_name,
+                                  int (**verifier)(void *, uint16_t algo, ptls_iovec_t, ptls_iovec_t), void **verify_data,
+                                  ptls_iovec_t *certs, size_t num_certs)
+{
+    ptls_minicrypto_secp256r1sha256_verify_certificate_t *self = (ptls_minicrypto_secp256r1sha256_verify_certificate_t *)_self;
+    int ret = PTLS_ALERT_BAD_CERTIFICATE;
+    ptls_iovec_t expected_pubkey = {self->key, sizeof(self->key)};
+
+    assert(num_certs != 0);
+
+    if (num_certs != 1)
+        return ret;
+
+/*    if (certs[0].len != expected_pubkey.len)
+         return ret;*/
+
+/*    if (!ptls_mem_equal(expected_pubkey.base, certs[0].base, certs[0].len))
+         return ret;*/
+
+    *verify_data = self->key;
+    *verifier = secp256r1sha256_verify_sign;
+    ret = 0;
+
+    return ret;
+}
+
+int ptls_minicrypto_init_secp256r1sha256_verify_certificate(ptls_minicrypto_secp256r1sha256_verify_certificate_t* self,
+                                                            ptls_iovec_t key)
+{
+    static const uint16_t signature_schemes[] = {PTLS_SIGNATURE_ECDSA_SECP256R1_SHA256, UINT16_MAX};
+
+    if (key.len != sizeof(self->key))
+        return PTLS_ERROR_INCOMPATIBLE_KEY;
+
+    self->super.cb = secp256r1sha256_verify;
+    self->super.algos = signature_schemes;
     memcpy(self->key, key.base, sizeof(self->key));
 
     return 0;

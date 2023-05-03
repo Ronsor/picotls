@@ -17,8 +17,6 @@
 #ifndef PTLS_ASN1_H
 #define PTLS_ASN1_H
 
-// #include "picotls/minicrypto.h"
-
 /*
  * The ASN.1 functions take a "log context" parameter of type ptls_minicrypto_log_ctx_t.
  *

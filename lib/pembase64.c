@@ -296,6 +296,11 @@ static int ptls_get_pem_object(FILE *F, const char *label, ptls_buffer_t *buf)
     return ret;
 }
 
+int ptls_load_pem_objects_data(char const *pem_data, const char *label, ptls_iovec_t *list, size_t list_max, size_t *nb_objects)
+{
+    // TODO
+}
+
 int ptls_load_pem_objects(char const *pem_fname, const char *label, ptls_iovec_t *list, size_t list_max, size_t *nb_objects)
 {
     FILE *F;

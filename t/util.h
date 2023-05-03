@@ -87,7 +87,7 @@ static inline void load_private_key(ptls_context_t *ctx, const char *fn)
 
     ctx->sign_certificate = &sc.super;
 #else
-    if (ptls_minicrypto_load_private_key(ctx, fn) != 0) {
+    if (ptls_minicrypto_load_private_key_file(ctx, fn) != 0) {
         fprintf(stderr, "failed to load private key from file:%s:%s\n", fn, strerror(errno));
         exit(1);
     }
@@ -171,6 +171,15 @@ static inline void setup_raw_pubkey_verify_certificate(ptls_context_t *ctx, EVP_
     static ptls_openssl_raw_pubkey_verify_certificate_t vc;
     ptls_openssl_raw_pubkey_init_verify_certificate(&vc, pubkey);
     ctx->verify_certificate = &vc.super;
+}
+#else
+static inline void setup_verify_certificate(ptls_context_t *ctx, const char *ca_file)
+{
+}
+
+static inline void setup_raw_pubkey_verify_certificate(ptls_context_t *ctx, ptls_iovec_t raw_pub_key)
+{
+    ptls_minicrypto_load_public_key_vec(ctx, raw_pub_key);
 }
 #endif
 

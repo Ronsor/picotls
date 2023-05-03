@@ -109,6 +109,7 @@ ADD_EXECUTABLE(test-minicrypto.t
     t/minicrypto.c
     lib/asn1.c
     lib/pembase64.c
+    lib/minicrypto-pem.c
     lib/ffx.c
     lib/cifra/x25519.c
     lib/cifra/chacha20.c

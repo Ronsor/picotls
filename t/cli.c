@@ -387,6 +387,8 @@ static void usage(const char *cmd)
            "                       client, the argument specifies the public keys that the\n"
            "                       server is expected to use. When running as a server, the\n"
            "                       argument is ignored.\n"
+           "  -R public-key-file   verify peer certificate signature with the public keys\n"
+           "                       specified by the argument.\n"
            "  -u                   update the traffic key when handshake is complete\n"
            "  -v                   verify peer using the default certificates\n"
            "  -V CA-root-file      verify peer using the CA Root File\n"
@@ -463,9 +465,10 @@ int main(int argc, char **argv)
     struct sockaddr_storage sa;
     socklen_t salen;
     int family = 0;
+    int only_verify_pub_key = 0;
     const char *raw_pub_key_file = NULL, *cert_location = NULL;
 
-    while ((ch = getopt(argc, argv, "46abBC:c:i:Ij:k:nN:es:Sr:E:K:l:y:vV:h")) != -1) {
+    while ((ch = getopt(argc, argv, "46abBC:c:i:Ij:k:nN:es:Sr:R:E:K:l:y:vV:h")) != -1) {
         switch (ch) {
         case '4':
             family = AF_INET;
@@ -514,6 +517,8 @@ int main(int argc, char **argv)
         case 'e':
             use_early_data = 1;
             break;
+        case 'R':
+            only_verify_pub_key = 1;
         case 'r':
             raw_pub_key_file = optarg;
             break;
@@ -625,9 +630,13 @@ int main(int argc, char **argv)
             }
             setup_raw_pubkey_verify_certificate(&ctx, pubkey);
             EVP_PKEY_free(pubkey);
+#else
+            ptls_iovec_t raw_pub_key;
+            load_raw_public_key(&raw_pub_key, raw_pub_key_file);
+            setup_raw_pubkey_verify_certificate(&ctx, raw_pub_key);
 #endif
         }
-        ctx.use_raw_public_keys = 1;
+        ctx.use_raw_public_keys = !only_verify_pub_key;
     } else {
         if (cert_location)
             load_certificate_chain(&ctx, cert_location);

@@ -27,6 +27,7 @@ extern "C" {
 #endif
 
 #include "picotls.h"
+#include "asn1.h"
 
 #define SECP256R1_PRIVATE_KEY_SIZE 32
 #define SECP256R1_PUBLIC_KEY_SIZE 65 /* including the header */
@@ -37,10 +38,18 @@ typedef struct st_ptls_minicrypto_secp256r1sha256_sign_certificate_t {
     uint8_t key[SECP256R1_PRIVATE_KEY_SIZE];
 } ptls_minicrypto_secp256r1sha256_sign_certificate_t;
 
+typedef struct st_ptls_minicrypto_secp256r1sha256_verify_certificate_t {
+    ptls_verify_certificate_t super;
+    uint8_t key[SECP256R1_PUBLIC_KEY_SIZE];
+} ptls_minicrypto_secp256r1sha256_verify_certificate_t;
+
 void ptls_minicrypto_random_bytes(void *buf, size_t len);
 
 int ptls_minicrypto_init_secp256r1sha256_sign_certificate(ptls_minicrypto_secp256r1sha256_sign_certificate_t *self,
                                                           ptls_iovec_t key);
+
+int ptls_minicrypto_init_secp256r1sha256_verify_certificate(ptls_minicrypto_secp256r1sha256_verify_certificate_t *self,
+                                                            ptls_iovec_t key);
 
 extern ptls_key_exchange_algorithm_t ptls_minicrypto_secp256r1, ptls_minicrypto_x25519;
 extern ptls_key_exchange_algorithm_t *ptls_minicrypto_key_exchanges[];
@@ -70,7 +79,25 @@ typedef struct st_ptls_asn1_pkcs8_private_key_t {
     uint32_t key_data_length;
 } ptls_asn1_pkcs8_private_key_t;
 
-int ptls_minicrypto_load_private_key(ptls_context_t *ctx, char const *pem_fname);
+typedef struct st_ptls_asn1_x509_public_key_t {
+    ptls_iovec_t vec;
+    size_t algorithm_index;
+    uint32_t algorithm_length;
+    size_t parameters_index;
+    uint32_t parameters_length;
+    size_t key_data_index;
+    uint32_t key_data_length;
+} ptls_asn1_x509_public_key_t;
+
+size_t ptls_minicrypto_asn1_decode_private_key(ptls_asn1_pkcs8_private_key_t *pkey, int *decode_error,
+                                               ptls_minicrypto_log_ctx_t *log_ctx);
+
+int ptls_minicrypto_load_private_key_file(ptls_context_t *ctx, char const *pem_fname);
+
+size_t ptls_minicrypto_asn1_decode_public_key(ptls_asn1_x509_public_key_t *pkey, int *decode_error,
+                                              ptls_minicrypto_log_ctx_t *log_ctx);
+
+int ptls_minicrypto_load_public_key_vec(ptls_context_t *ctx, ptls_iovec_t vec);
 
 #ifdef __cplusplus
 }
