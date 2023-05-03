@@ -26,6 +26,12 @@
 #define _XOPEN_SOURCE 700 /* required for glibc to use getaddrinfo, etc. */
 #endif
 
+#ifdef WITHOUT_OPENSSL
+#define OPENSSL_OR_MINICRYPTO(x, y) y
+#else
+#define OPENSSL_OR_MINICRYPTO(x, y) x
+#endif
+
 #include <errno.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -59,6 +65,7 @@ static inline void load_raw_public_key(ptls_iovec_t *raw_public_key, char const 
 
 static inline void load_private_key(ptls_context_t *ctx, const char *fn)
 {
+#ifndef WITHOUT_OPENSSL
     static ptls_openssl_sign_certificate_t sc;
     FILE *fp;
     EVP_PKEY *pkey;
@@ -79,6 +86,12 @@ static inline void load_private_key(ptls_context_t *ctx, const char *fn)
     EVP_PKEY_free(pkey);
 
     ctx->sign_certificate = &sc.super;
+#else
+    if (ptls_minicrypto_load_private_key(ctx, fn) != 0) {
+        fprintf(stderr, "failed to load private key from file:%s:%s\n", fn, strerror(errno));
+        exit(1);
+    }
+#endif
 }
 
 struct st_util_save_ticket_t {
@@ -124,6 +137,7 @@ static inline void setup_session_file(ptls_context_t *ctx, ptls_handshake_proper
     }
 }
 
+#ifndef WITHOUT_OPENSSL
 static inline X509_STORE *init_cert_store(char const *crt_file)
 {
     int ret = 0;
@@ -158,6 +172,7 @@ static inline void setup_raw_pubkey_verify_certificate(ptls_context_t *ctx, EVP_
     ptls_openssl_raw_pubkey_init_verify_certificate(&vc, pubkey);
     ctx->verify_certificate = &vc.super;
 }
+#endif
 
 struct st_util_log_event_t {
     ptls_log_event_t super;
@@ -276,11 +291,13 @@ static ptls_aead_context_t *ech_create_opener(ptls_ech_create_opener_t *self, pt
 
     /* look for the cipher implementation; this should better be specific to each ECHConfig (as each of them may advertise different
      * set of values) */
+
+    ptls_hpke_cipher_suite_t **cipher_suites = OPENSSL_OR_MINICRYPTO(ptls_openssl_hpke_cipher_suites, ptls_minicrypto_hpke_cipher_suites);
     *cipher = NULL;
-    for (size_t i = 0; ptls_openssl_hpke_cipher_suites[i] != NULL; ++i) {
-        if (ptls_openssl_hpke_cipher_suites[i]->id.kdf == cipher_id.kdf &&
-            ptls_openssl_hpke_cipher_suites[i]->id.aead == cipher_id.aead) {
-            *cipher = ptls_openssl_hpke_cipher_suites[i];
+    for (size_t i = 0; cipher_suites[i] != NULL; ++i) {
+        if (cipher_suites[i]->id.kdf == cipher_id.kdf &&
+            cipher_suites[i]->id.aead == cipher_id.aead) {
+            *cipher = cipher_suites[i];
             break;
         }
     }
@@ -358,6 +375,7 @@ static void ech_setup_configs(const char *fn)
 
 static void ech_setup_key(ptls_context_t *ctx, const char *fn)
 {
+#ifndef WITHOUT_OPENSSL
     FILE *fp;
     EVP_PKEY *pkey;
     int ret;
@@ -392,6 +410,9 @@ static void ech_setup_key(ptls_context_t *ctx, const char *fn)
 
     static ptls_ech_create_opener_t opener = {.cb = ech_create_opener};
     ctx->ech.server.create_opener = &opener;
+#else
+    assert(!"unsupported");
+#endif
 }
 
 static inline int resolve_address(struct sockaddr *sa, socklen_t *salen, const char *host, const char *port, int family, int type,

@@ -39,16 +39,20 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
+#ifndef WITHOUT_OPENSSL
 #define OPENSSL_API_COMPAT 0x00908000L
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/engine.h>
 #include <openssl/pem.h>
+#include "picotls/openssl.h"
+#else
+#include "picotls/minicrypto.h"
+#endif
 #if PICOTLS_USE_BROTLI
 #include "brotli/decode.h"
 #endif
 #include "picotls.h"
-#include "picotls/openssl.h"
 #if PICOTLS_USE_BROTLI
 #include "picotls/certificate_compression.h"
 #endif
@@ -391,6 +395,7 @@ static void usage(const char *cmd)
            "  -h                   print this help\n"
            "\n"
            "Supported named groups: secp256r1"
+#ifndef WITHOUT_OPENSSL
 #if PTLS_OPENSSL_HAVE_SECP384R1
            ", secp384r1"
 #endif
@@ -400,8 +405,14 @@ static void usage(const char *cmd)
 #if PTLS_OPENSSL_HAVE_X25519
            ", X25519"
 #endif
+#endif
            "\n"
-           "Supported signature algorithms: rsa, secp256r1"
+           "Supported signature algorithms: "
+#ifndef WITHOUT_OPENSSL
+           "rsa, "
+#endif
+           "secp256r1"
+#ifndef WITHOUT_OPENSSL
 #if PTLS_OPENSSL_HAVE_SECP384R1
            ", secp384r1"
 #endif
@@ -411,12 +422,14 @@ static void usage(const char *cmd)
 #if PTLS_OPENSSL_HAVE_ED25519
            ", ed25519"
 #endif
+#endif
            "\n\n",
            cmd);
 }
 
 int main(int argc, char **argv)
 {
+#ifndef WITHOUT_OPENSSL
     ERR_load_crypto_strings();
     OpenSSL_add_all_algorithms();
 #if !defined(OPENSSL_NO_ENGINE)
@@ -425,17 +438,24 @@ int main(int argc, char **argv)
     ENGINE_register_all_ciphers();
     ENGINE_register_all_digests();
 #endif
+#endif
 
     res_init();
 
     ptls_key_exchange_algorithm_t *key_exchanges[128] = {NULL};
     ptls_cipher_suite_t *cipher_suites[128] = {NULL};
     ptls_context_t ctx = {
-        .random_bytes = ptls_openssl_random_bytes,
+        .random_bytes = OPENSSL_OR_MINICRYPTO(
+            ptls_openssl_random_bytes,
+            ptls_minicrypto_random_bytes
+        ),
         .get_time = &ptls_get_time,
         .key_exchanges = key_exchanges,
         .cipher_suites = cipher_suites,
-        .ech = {.client = {ptls_openssl_hpke_cipher_suites, ptls_openssl_hpke_kems}, .server = {NULL /* activated by -K option */}},
+        .ech = {.client = {
+            OPENSSL_OR_MINICRYPTO(ptls_openssl_hpke_cipher_suites, ptls_minicrypto_hpke_cipher_suites),
+            OPENSSL_OR_MINICRYPTO(ptls_openssl_hpke_kems, ptls_minicrypto_hpke_kems)
+        }, .server = {NULL /* activated by -K option */}},
     };
     ptls_handshake_properties_t hsprop = {{{{NULL}}}};
     const char *host, *port, *input_file = NULL;
@@ -513,12 +533,17 @@ int main(int argc, char **argv)
             setup_log_event(&ctx, optarg);
             break;
         case 'v':
+#ifndef WITHOUT_OPENSSL
             setup_verify_certificate(&ctx, NULL);
+#endif
             break;
         case 'V':
+#ifndef WITHOUT_OPENSSL
             setup_verify_certificate(&ctx, optarg);
+#endif
             break;
         case 'N': {
+#ifndef WITHOUT_OPENSSL
             ptls_key_exchange_algorithm_t *algo = NULL;
 #define MATCH(name)                                                                                                                \
     if (algo == NULL && strcasecmp(optarg, #name) == 0)                                                                            \
@@ -534,6 +559,14 @@ int main(int argc, char **argv)
             MATCH(x25519);
 #endif
 #undef MATCH
+#else
+            ptls_key_exchange_algorithm_t *algo = NULL;
+#define MATCH(name)                                                                                                                \
+    if (algo == NULL && strcasecmp(optarg, #name) == 0)                                                                            \
+    algo = (&ptls_minicrypto_##name)
+            MATCH(secp256r1);
+#undef MATCH
+#endif
             if (algo == NULL) {
                 fprintf(stderr, "could not find key exchange: %s\n", optarg);
                 return 1;
@@ -552,10 +585,10 @@ int main(int argc, char **argv)
                 ;
 #define MATCH(name)                                                                                                                \
     if (cipher_suites[i] == NULL && strcasecmp(optarg, #name) == 0)                                                                \
-    cipher_suites[i] = &ptls_openssl_##name
+    cipher_suites[i] = OPENSSL_OR_MINICRYPTO(&ptls_openssl_##name, &ptls_minicrypto_##name)
             MATCH(aes128gcmsha256);
             MATCH(aes256gcmsha384);
-#if PTLS_OPENSSL_HAVE_CHACHA20_POLY1305
+#if defined(PTLS_OPENSSL_HAVE_CHACHA20_POLY1305) || defined(WITHOUT_OPENSSL)
             MATCH(chacha20poly1305sha256);
 #endif
 #undef MATCH
@@ -581,6 +614,7 @@ int main(int argc, char **argv)
             load_raw_public_key(ctx.certificates.list, cert_location);
             ctx.certificates.count = 1;
         } else if (!is_dash) {
+#ifndef WITHOUT_OPENSSL
             ptls_iovec_t raw_pub_key;
             EVP_PKEY *pubkey;
             load_raw_public_key(&raw_pub_key, raw_pub_key_file);
@@ -591,6 +625,7 @@ int main(int argc, char **argv)
             }
             setup_raw_pubkey_verify_certificate(&ctx, pubkey);
             EVP_PKEY_free(pubkey);
+#endif
         }
         ctx.use_raw_public_keys = 1;
     } else {
@@ -631,11 +666,12 @@ int main(int argc, char **argv)
         hsprop.client.ech.retry_configs = &ech.retry.configs;
     }
     if (key_exchanges[0] == NULL)
-        key_exchanges[0] = &ptls_openssl_secp256r1;
+        key_exchanges[0] = OPENSSL_OR_MINICRYPTO(&ptls_openssl_secp256r1, &ptls_minicrypto_secp256r1);
     if (cipher_suites[0] == NULL) {
         size_t i;
-        for (i = 0; ptls_openssl_cipher_suites[i] != NULL; ++i)
-            cipher_suites[i] = ptls_openssl_cipher_suites[i];
+        ptls_cipher_suite_t** all_cipher_suites = OPENSSL_OR_MINICRYPTO(ptls_openssl_cipher_suites, ptls_minicrypto_cipher_suites);
+        for (i = 0; all_cipher_suites[i] != NULL; ++i)
+            cipher_suites[i] = all_cipher_suites[i];
     }
     if (argc != 2) {
         fprintf(stderr, "missing host and port\n");

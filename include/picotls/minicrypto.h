@@ -47,9 +47,18 @@ extern ptls_key_exchange_algorithm_t *ptls_minicrypto_key_exchanges[];
 extern ptls_cipher_algorithm_t ptls_minicrypto_aes128ecb, ptls_minicrypto_aes256ecb, ptls_minicrypto_aes128ctr,
     ptls_minicrypto_aes256ctr, ptls_minicrypto_chacha20;
 extern ptls_aead_algorithm_t ptls_minicrypto_aes128gcm, ptls_minicrypto_aes256gcm, ptls_minicrypto_chacha20poly1305;
-extern ptls_hash_algorithm_t ptls_minicrypto_sha256, ptls_minicrypto_sha384;
+extern ptls_hash_algorithm_t ptls_minicrypto_sha256, ptls_minicrypto_sha384, ptls_minicrypto_sha512;
 extern ptls_cipher_suite_t ptls_minicrypto_aes128gcmsha256, ptls_minicrypto_aes256gcmsha384, ptls_minicrypto_chacha20poly1305sha256;
 extern ptls_cipher_suite_t *ptls_minicrypto_cipher_suites[];
+
+extern ptls_hpke_kem_t ptls_minicrypto_hpke_kem_p256sha256;
+extern ptls_hpke_kem_t *ptls_minicrypto_hpke_kems[];
+
+extern ptls_hpke_cipher_suite_t ptls_minicrypto_hpke_aes128gcmsha256;
+extern ptls_hpke_cipher_suite_t ptls_minicrypto_hpke_aes128gcmsha512;
+extern ptls_hpke_cipher_suite_t ptls_minicrypto_hpke_aes256gcmsha384;
+extern ptls_hpke_cipher_suite_t ptls_minicrypto_hpke_chacha20poly1305sha256;
+extern ptls_hpke_cipher_suite_t *ptls_minicrypto_hpke_cipher_suites[];
 
 typedef struct st_ptls_asn1_pkcs8_private_key_t {
     ptls_iovec_t vec;

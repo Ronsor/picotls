@@ -97,6 +97,7 @@ ADD_LIBRARY(picotls-minicrypto
     lib/cifra/aes256.c
     lib/cifra/random.c
     lib/minicrypto-pem.c
+    lib/minicrypto-hpke.c
     lib/uecc.c
     lib/asn1.c
     lib/ffx.c)
@@ -120,8 +121,10 @@ SET(TEST_EXES test-minicrypto.t)
 SET(PTLSBENCH_LIBS
     picotls-minicrypto picotls-core)
 
-FIND_PACKAGE(OpenSSL)
-BORINGSSL_ADJUST()
+IF (NOT WITHOUT_OPENSSL)
+    FIND_PACKAGE(OpenSSL)
+    BORINGSSL_ADJUST()
+ENDIF ()
 
 IF (OPENSSL_FOUND AND NOT (OPENSSL_VERSION VERSION_LESS "1.0.1"))
     MESSAGE(STATUS "  Enabling OpenSSL support")
@@ -154,6 +157,9 @@ IF (OPENSSL_FOUND AND NOT (OPENSSL_VERSION VERSION_LESS "1.0.1"))
     SET(TEST_EXES ${TEST_EXES} test-openssl.t)
 ELSE ()
     MESSAGE(WARNING "Disabling OpenSSL support (requires 1.0.1 or newer)")
+    ADD_EXECUTABLE(cli t/cli.c lib/pembase64.c)
+    TARGET_COMPILE_DEFINITIONS(cli PRIVATE -DWITHOUT_OPENSSL)
+    TARGET_LINK_LIBRARIES(cli picotls-minicrypto picotls-core)
 ENDIF ()
 
 IF (WITH_FUSION)
@@ -174,11 +180,13 @@ IF (WITH_FUSION)
     LIST(APPEND PTLSBENCH_LIBS picotls-fusion)
 ENDIF ()
 
-ADD_EXECUTABLE(ptlsbench t/ptlsbench.c)
-SET_TARGET_PROPERTIES(ptlsbench PROPERTIES COMPILE_FLAGS "-DPTLS_MEMORY_DEBUG=1")
-TARGET_LINK_LIBRARIES(ptlsbench ${PTLSBENCH_LIBS})
-IF (NOT WITH_FUSION)
-    SET_TARGET_PROPERTIES(ptlsbench PROPERTIES EXCLUDE_FROM_ALL 1)
+IF (OPENSSL_FOUND AND NOT (OPENSSL_VERSION VERSION_LESS "1.0.1"))
+    ADD_EXECUTABLE(ptlsbench t/ptlsbench.c)
+    SET_TARGET_PROPERTIES(ptlsbench PROPERTIES COMPILE_FLAGS "-DPTLS_MEMORY_DEBUG=1")
+    TARGET_LINK_LIBRARIES(ptlsbench ${PTLSBENCH_LIBS})
+    IF (NOT WITH_FUSION)
+        SET_TARGET_PROPERTIES(ptlsbench PROPERTIES EXCLUDE_FROM_ALL 1)
+    ENDIF ()
 ENDIF ()
 
 ADD_CUSTOM_TARGET(check env BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR} prove --exec '' -v ${CMAKE_CURRENT_BINARY_DIR}/*.t t/*.t WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${TEST_EXES} cli)

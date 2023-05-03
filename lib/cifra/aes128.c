@@ -41,6 +41,11 @@ ptls_define_hash(sha256, cf_sha256_context, cf_sha256_init, cf_sha256_update, cf
 ptls_hash_algorithm_t ptls_minicrypto_sha256 = {"sha256", PTLS_SHA256_BLOCK_SIZE, PTLS_SHA256_DIGEST_SIZE, sha256_create,
                                                 PTLS_ZERO_DIGEST_SHA256};
 
+ptls_define_hash(sha512, cf_sha512_context, cf_sha512_init, cf_sha512_update, cf_sha512_digest_final);
+
+ptls_hash_algorithm_t ptls_minicrypto_sha512 = {"sha512", PTLS_SHA512_BLOCK_SIZE, PTLS_SHA512_DIGEST_SIZE, sha512_create,
+                                                PTLS_ZERO_DIGEST_SHA512};
+
 ptls_cipher_algorithm_t ptls_minicrypto_aes128ecb = {
     "AES128-ECB",          PTLS_AES128_KEY_SIZE, PTLS_AES_BLOCK_SIZE, 0 /* iv size */, sizeof(struct aesecb_context_t),
     aes128ecb_setup_crypto};
