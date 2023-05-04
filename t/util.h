@@ -26,7 +26,7 @@
 #define _XOPEN_SOURCE 700 /* required for glibc to use getaddrinfo, etc. */
 #endif
 
-#ifdef WITHOUT_OPENSSL
+#ifdef PICOTLS_NO_OPENSSL
 #define OPENSSL_OR_MINICRYPTO(x, y) y
 #else
 #define OPENSSL_OR_MINICRYPTO(x, y) x
@@ -65,7 +65,7 @@ static inline void load_raw_public_key(ptls_iovec_t *raw_public_key, char const 
 
 static inline void load_private_key(ptls_context_t *ctx, const char *fn)
 {
-#ifndef WITHOUT_OPENSSL
+#ifndef PICOTLS_NO_OPENSSL
     static ptls_openssl_sign_certificate_t sc;
     FILE *fp;
     EVP_PKEY *pkey;
@@ -137,7 +137,7 @@ static inline void setup_session_file(ptls_context_t *ctx, ptls_handshake_proper
     }
 }
 
-#ifndef WITHOUT_OPENSSL
+#ifndef PICOTLS_NO_OPENSSL
 static inline X509_STORE *init_cert_store(char const *crt_file)
 {
     int ret = 0;
@@ -384,7 +384,7 @@ static void ech_setup_configs(const char *fn)
 
 static void ech_setup_key(ptls_context_t *ctx, const char *fn)
 {
-#ifndef WITHOUT_OPENSSL
+#ifndef PICOTLS_NO_OPENSSL
     FILE *fp;
     EVP_PKEY *pkey;
     int ret;
@@ -420,6 +420,7 @@ static void ech_setup_key(ptls_context_t *ctx, const char *fn)
     static ptls_ech_create_opener_t opener = {.cb = ech_create_opener};
     ctx->ech.server.create_opener = &opener;
 #else
+    (void)ech_create_opener;
     assert(!"unsupported");
 #endif
 }

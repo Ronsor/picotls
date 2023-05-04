@@ -35,7 +35,15 @@
 #include "picotls.h"
 #include "picotls/minicrypto.h"
 #include <stdio.h>
-#ifdef _WINDOWS
+#if defined(PICOTLS_MINILIBC)
+static void read_entropy(uint8_t *entropy, size_t size)
+{
+    if (getrandom(entropy, size, 0) != size) {
+        perror("ptls_minicrypto_random_bytes: could not use getrandom");
+        abort();
+    }
+}
+#elif defined(_WINDOWS)
 #ifdef _WINDOWS_XP
 /* The modern BCrypt API is only available on Windows Vista and later versions.
  * If compiling on Windows XP, we need to use the olded "wincrypt" API */

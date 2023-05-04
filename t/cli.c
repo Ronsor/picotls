@@ -39,7 +39,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
-#ifndef WITHOUT_OPENSSL
+#ifndef PICOTLS_NO_OPENSSL
 #define OPENSSL_API_COMPAT 0x00908000L
 #include <openssl/err.h>
 #include <openssl/evp.h>
@@ -397,7 +397,7 @@ static void usage(const char *cmd)
            "  -h                   print this help\n"
            "\n"
            "Supported named groups: secp256r1"
-#ifndef WITHOUT_OPENSSL
+#ifndef PICOTLS_NO_OPENSSL
 #if PTLS_OPENSSL_HAVE_SECP384R1
            ", secp384r1"
 #endif
@@ -410,11 +410,11 @@ static void usage(const char *cmd)
 #endif
            "\n"
            "Supported signature algorithms: "
-#ifndef WITHOUT_OPENSSL
+#ifndef PICOTLS_NO_OPENSSL
            "rsa, "
 #endif
            "secp256r1"
-#ifndef WITHOUT_OPENSSL
+#ifndef PICOTLS_NO_OPENSSL
 #if PTLS_OPENSSL_HAVE_SECP384R1
            ", secp384r1"
 #endif
@@ -431,7 +431,7 @@ static void usage(const char *cmd)
 
 int main(int argc, char **argv)
 {
-#ifndef WITHOUT_OPENSSL
+#ifndef PICOTLS_NO_OPENSSL
     ERR_load_crypto_strings();
     OpenSSL_add_all_algorithms();
 #if !defined(OPENSSL_NO_ENGINE)
@@ -538,17 +538,17 @@ int main(int argc, char **argv)
             setup_log_event(&ctx, optarg);
             break;
         case 'v':
-#ifndef WITHOUT_OPENSSL
+#ifndef PICOTLS_NO_OPENSSL
             setup_verify_certificate(&ctx, NULL);
 #endif
             break;
         case 'V':
-#ifndef WITHOUT_OPENSSL
+#ifndef PICOTLS_NO_OPENSSL
             setup_verify_certificate(&ctx, optarg);
 #endif
             break;
         case 'N': {
-#ifndef WITHOUT_OPENSSL
+#ifndef PICOTLS_NO_OPENSSL
             ptls_key_exchange_algorithm_t *algo = NULL;
 #define MATCH(name)                                                                                                                \
     if (algo == NULL && strcasecmp(optarg, #name) == 0)                                                                            \
@@ -593,7 +593,7 @@ int main(int argc, char **argv)
     cipher_suites[i] = OPENSSL_OR_MINICRYPTO(&ptls_openssl_##name, &ptls_minicrypto_##name)
             MATCH(aes128gcmsha256);
             MATCH(aes256gcmsha384);
-#if defined(PTLS_OPENSSL_HAVE_CHACHA20_POLY1305) || defined(WITHOUT_OPENSSL)
+#if defined(PTLS_OPENSSL_HAVE_CHACHA20_POLY1305) || defined(PICOTLS_NO_OPENSSL)
             MATCH(chacha20poly1305sha256);
 #endif
 #undef MATCH
@@ -619,7 +619,7 @@ int main(int argc, char **argv)
             load_raw_public_key(ctx.certificates.list, cert_location);
             ctx.certificates.count = 1;
         } else if (!is_dash) {
-#ifndef WITHOUT_OPENSSL
+#ifndef PICOTLS_NO_OPENSSL
             ptls_iovec_t raw_pub_key;
             EVP_PKEY *pubkey;
             load_raw_public_key(&raw_pub_key, raw_pub_key_file);

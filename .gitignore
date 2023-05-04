@@ -31,3 +31,9 @@ deps/picotest
 /picotlsvs/testopenssl/testopenssl.vcxproj.user
 /fuzz/fuzzer-asn1-type-and-length.c
 /fuzz/fuzzer-asn1-validation.c
+*.o
+*.a
+*.so
+*.so.?
+*.so.?.?
+*.so.?.?.?

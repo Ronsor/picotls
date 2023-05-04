@@ -26,6 +26,9 @@
 extern "C" {
 #endif
 
+#ifdef PICOTLS_MINILIBC
+#include "minilibc.h"
+#else
 #ifdef _WINDOWS
 #include "wincompat.h"
 #endif
@@ -34,8 +37,9 @@ extern "C" {
 #include <inttypes.h>
 #include <string.h>
 #include <sys/types.h>
+#endif
 
-#if __GNUC__ >= 3
+#if __GNUC__ >= 3 && !defined(PICOTLS_SINGLE_FILE)
 #define PTLS_LIKELY(x) __builtin_expect(!!(x), 1)
 #define PTLS_UNLIKELY(x) __builtin_expect(!!(x), 0)
 #define PTLS_BUILD_ASSERT_EXPR(cond) (sizeof(char[2 * !!(!__builtin_constant_p(cond) || (cond)) - 1]) != 0)
@@ -52,7 +56,7 @@ extern "C" {
  * best coverage. This macro is for preventing misuse going into the master branch, having it work one of the compilers supported in
  * our CI is enough.
  */
-#if ((defined(__clang__) && __clang_major__ >= 10) || __GNUC__ >= 6) && !defined(__cplusplus)
+#if ((defined(__clang__) && __clang_major__ >= 10) || __GNUC__ >= 6) && !defined(__cplusplus) && !defined(PICOTLS_SINGLE_FILE)
 #define PTLS_ASSERT_IS_ARRAY_EXPR(a) PTLS_BUILD_ASSERT_EXPR(__builtin_types_compatible_p(__typeof__(a[0])[], __typeof__(a)))
 #else
 #define PTLS_ASSERT_IS_ARRAY_EXPR(a) 1
@@ -64,7 +68,9 @@ extern "C" {
 #define PTLS_THREADLOCAL __declspec(thread)
 #else
 #define PTLS_THREADLOCAL __thread
+#if !defined(PICOTLS_MINILIBC) && !defined(PICOTLS_NO_LOG)
 #define PTLS_HAVE_LOG 1
+#endif
 #endif
 
 #ifndef PTLS_FUZZ_HANDSHAKE

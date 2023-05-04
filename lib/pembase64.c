@@ -296,9 +296,96 @@ static int ptls_get_pem_object(FILE *F, const char *label, ptls_buffer_t *buf)
     return ret;
 }
 
-int ptls_load_pem_objects_data(char const *pem_data, const char *label, ptls_iovec_t *list, size_t list_max, size_t *nb_objects)
+static char* strgets(char* buf, int len, const char** cursor)
 {
-    // TODO
+    if (!*cursor || !**cursor) {
+      return NULL;
+    }
+
+    const char* next = strchr(*cursor, '\n');
+    if (next) {
+      next++;
+    } else {
+      next = *cursor + strlen(*cursor);
+    }
+
+    size_t count = (next - *cursor) > (len - 1) ? (len - 1) : (next - *cursor);
+    memcpy(buf, *cursor, count);
+    buf[count] = '\0';
+    *cursor = next;
+
+    return buf;
+}
+
+static int ptls_get_pem_object_str(const char** cursor, const char *label, ptls_buffer_t *buf)
+{
+    int ret = PTLS_ERROR_PEM_LABEL_NOT_FOUND;
+    char line[256];
+    ptls_base64_decode_state_t state;
+
+    /* Get the label on a line by itself */
+    while (strgets(line, 256, cursor)) {
+        if (ptls_compare_separator_line(line, "BEGIN", label) == 0) {
+            ret = 0;
+            ptls_base64_decode_init(&state);
+            break;
+        }
+    }
+
+    /* Get the data in the buffer */
+    while (ret == 0 && strgets(line, 256, cursor)) {
+        if (ptls_compare_separator_line(line, "END", label) == 0) {
+            if (state.status == PTLS_BASE64_DECODE_DONE || (state.status == PTLS_BASE64_DECODE_IN_PROGRESS && state.nbc == 0)) {
+                ret = 0;
+            } else {
+                ret = PTLS_ERROR_INCORRECT_BASE64;
+            }
+            break;
+        } else {
+            ret = ptls_base64_decode(line, &state, buf);
+        }
+    }
+
+    return ret;
+}
+
+int ptls_load_pem_objects_str(char const *pem_str, const char *label, ptls_iovec_t *list, size_t list_max, size_t *nb_objects)
+{
+    int ret = 0;
+    size_t count = 0;
+    const char *cursor = pem_str;
+
+    *nb_objects = 0;
+
+    if (ret == 0) {
+        while (count < list_max) {
+            ptls_buffer_t buf;
+
+            ptls_buffer_init(&buf, "", 0);
+
+            ret = ptls_get_pem_object_str(&cursor, label, &buf);
+
+            if (ret == 0) {
+                if (buf.off > 0 && buf.is_allocated) {
+                    list[count].base = buf.base;
+                    list[count].len = buf.off;
+                    count++;
+                } else {
+                    ptls_buffer_dispose(&buf);
+                }
+            } else {
+                ptls_buffer_dispose(&buf);
+                break;
+            }
+        }
+    }
+
+    if (ret == PTLS_ERROR_PEM_LABEL_NOT_FOUND && count > 0) {
+        ret = 0;
+    }
+
+    *nb_objects = count;
+    return ret;
 }
 
 int ptls_load_pem_objects(char const *pem_fname, const char *label, ptls_iovec_t *list, size_t list_max, size_t *nb_objects)

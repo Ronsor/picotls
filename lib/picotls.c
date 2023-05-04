@@ -551,9 +551,13 @@ void ptls_buffer__release_memory(ptls_buffer_t *buf)
 {
     ptls_clear_memory(buf->base, buf->off);
     if (buf->is_allocated) {
-#ifdef _WINDOWS
+#if defined(PICOTLS_MINILIBC) || defined(_WINDOWS)
         if (buf->align_bits != 0) {
+#ifdef PICOTLS_MINILIBC
+            aligned_free(buf->base);
+#else
             _aligned_free(buf->base);
+#endif
         } else {
             free(buf->base);
         }
@@ -583,7 +587,10 @@ int ptls_buffer_reserve_aligned(ptls_buffer_t *buf, size_t delta, uint8_t align_
             new_capacity *= 2;
         }
         if (align_bits != 0) {
-#ifdef _WINDOWS
+#if defined(PICOTLS_MINILIBC)
+            if ((newp = aligned_alloc((size_t)1 << align_bits, new_capacity)) == NULL)
+                return PTLS_ERROR_NO_MEMORY;
+#elif defined(_WINDOWS)
             if ((newp = _aligned_malloc(new_capacity, (size_t)1 << align_bits)) == NULL)
                 return PTLS_ERROR_NO_MEMORY;
 #else
@@ -640,7 +647,7 @@ int ptls_buffer__adjust_quic_blocksize(ptls_buffer_t *buf, size_t body_size)
 
 int ptls_buffer__adjust_asn1_blocksize(ptls_buffer_t *buf, size_t body_size)
 {
-    fprintf(stderr, "unimplemented\n");
+    assert(!"unimplemented");
     abort();
 }
 
@@ -6280,9 +6287,13 @@ int (*volatile ptls_mem_equal)(const void *x, const void *y, size_t len) = mem_e
 
 static uint64_t get_time(ptls_get_time_t *self)
 {
+#ifdef PICOTLS_MINILIBC
+    return (uint64_t)mtime(NULL);
+#else
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return (uint64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
+#endif
 }
 
 ptls_get_time_t ptls_get_time = {get_time};
@@ -6507,6 +6518,8 @@ char *ptls_jsonescape(char *buf, const char *unsafe_str, size_t len)
     return dst;
 }
 
+#if PTLS_HAVE_LOG
+
 int ptls_log__do_pushv(ptls_buffer_t *buf, const void *p, size_t l)
 {
     if (ptls_buffer_reserve(buf, l) != 0)
@@ -6569,8 +6582,6 @@ int ptls_log__do_push_unsigned64(ptls_buffer_t *buf, uint64_t v)
     int len = snprintf(s, sizeof(s), "%" PRIu64, v);
     return ptls_log__do_pushv(buf, s, (size_t)len);
 }
-
-#if PTLS_HAVE_LOG
 
 volatile ptls_log_t ptls_log = {};
 

@@ -93,10 +93,14 @@ size_t ptls_minicrypto_asn1_decode_private_key(ptls_asn1_pkcs8_private_key_t *pk
                                                ptls_minicrypto_log_ctx_t *log_ctx);
 
 int ptls_minicrypto_load_private_key_file(ptls_context_t *ctx, char const *pem_fname);
+int ptls_minicrypto_load_private_key_str(ptls_context_t *ctx, char const *pem_str);
+int ptls_minicrypto_load_private_key_vec(ptls_context_t *ctx, ptls_iovec_t vec);
 
 size_t ptls_minicrypto_asn1_decode_public_key(ptls_asn1_x509_public_key_t *pkey, int *decode_error,
                                               ptls_minicrypto_log_ctx_t *log_ctx);
 
+int ptls_minicrypto_load_public_key_file(ptls_context_t *ctx, char const *pem_fname);
+int ptls_minicrypto_load_public_key_str(ptls_context_t *ctx, char const *pem_str);
 int ptls_minicrypto_load_public_key_vec(ptls_context_t *ctx, ptls_iovec_t vec);
 
 #ifdef __cplusplus

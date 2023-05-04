@@ -191,6 +191,35 @@ static int ptls_pem_parse_private_key_file(char const *pem_fname, ptls_asn1_pkcs
     return ret;
 }
 
+static int ptls_pem_parse_private_key_str(char const *pem_str, ptls_asn1_pkcs8_private_key_t *pkey,
+                                           ptls_minicrypto_log_ctx_t *log_ctx)
+{
+    size_t nb_keys = 0;
+    int ret = ptls_load_pem_objects_str(pem_str, "PRIVATE KEY", &pkey->vec, 1, &nb_keys);
+
+    if (ret == 0) {
+        if (nb_keys != 1) {
+            ret = PTLS_ERROR_PEM_LABEL_NOT_FOUND;
+        }
+    }
+
+    if (ret == 0 && nb_keys == 1) {
+        int decode_error = 0;
+
+        if (log_ctx != NULL) {
+            log_ctx->fn(log_ctx->ctx, "\nFound PRIVATE KEY, length = %d bytes\n", (int)pkey->vec.len);
+        }
+
+        (void)ptls_minicrypto_asn1_decode_private_key(pkey, &decode_error, log_ctx);
+
+        if (decode_error != 0) {
+            ret = decode_error;
+        }
+    }
+
+    return ret;
+}
+
 static const uint8_t ptls_asn1_algorithm_ecdsa[] = {0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01};
 
 static const uint8_t ptls_asn1_curve_secp256r1[] = {0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07};
@@ -345,6 +374,57 @@ err:
     return ret;
 }
 
+int ptls_minicrypto_load_private_key_str(ptls_context_t *ctx, char const *pem_str)
+{
+    ptls_asn1_pkcs8_private_key_t pkey = {{0}};
+    int ret = ptls_pem_parse_private_key_str(pem_str, &pkey, NULL);
+
+    if (ret != 0)
+        goto err;
+
+    /* Check that this is the expected key type.
+     * At this point, the minicrypto library only supports ECDSA keys.
+     * In theory, we could add support for RSA keys at some point.
+     */
+    if (pkey.algorithm_length != sizeof(ptls_asn1_algorithm_ecdsa) ||
+        memcmp(pkey.vec.base + pkey.algorithm_index, ptls_asn1_algorithm_ecdsa, sizeof(ptls_asn1_algorithm_ecdsa)) != 0) {
+        ret = -1;
+        goto err;
+    }
+
+    ret = ptls_set_ecdsa_private_key(ctx, &pkey, NULL);
+
+err:
+    if (pkey.vec.base) {
+        ptls_clear_memory(pkey.vec.base, pkey.vec.len);
+        free(pkey.vec.base);
+    }
+    return ret;
+}
+
+int ptls_minicrypto_load_private_key_vec(ptls_context_t *ctx, ptls_iovec_t vec)
+{
+    ptls_asn1_pkcs8_private_key_t pkey = {vec};
+
+    int decode_error = 0;
+    ptls_minicrypto_asn1_decode_private_key(&pkey, &decode_error, NULL);
+
+    if (decode_error != 0) {
+        return decode_error;
+    }
+
+    /* Check that this is the expected key type.
+     * At this point, the minicrypto library only supports ECDSA keys.
+     * In theory, we could add support for RSA keys at some point.
+     */
+    if (pkey.algorithm_length != sizeof(ptls_asn1_algorithm_ecdsa) ||
+        memcmp(pkey.vec.base + pkey.algorithm_index, ptls_asn1_algorithm_ecdsa, sizeof(ptls_asn1_algorithm_ecdsa)) != 0) {
+        return -1;
+    }
+
+    return ptls_set_ecdsa_private_key(ctx, &pkey, NULL);
+}
+
 size_t ptls_minicrypto_asn1_decode_public_key(ptls_asn1_x509_public_key_t *pkey, int *decode_error,
                                               ptls_minicrypto_log_ctx_t *log_ctx)
 {
@@ -457,6 +537,64 @@ size_t ptls_minicrypto_asn1_decode_public_key(ptls_asn1_x509_public_key_t *pkey,
     return byte_index;
 }
 
+static int ptls_pem_parse_public_key_file(char const *pem_fname, ptls_asn1_x509_public_key_t *pkey,
+                                           ptls_minicrypto_log_ctx_t *log_ctx)
+{
+    size_t nb_keys = 0;
+    int ret = ptls_load_pem_objects(pem_fname, "PUBLIC KEY", &pkey->vec, 1, &nb_keys);
+
+    if (ret == 0) {
+        if (nb_keys != 1) {
+            ret = PTLS_ERROR_PEM_LABEL_NOT_FOUND;
+        }
+    }
+
+    if (ret == 0 && nb_keys == 1) {
+        int decode_error = 0;
+
+        if (log_ctx != NULL) {
+            log_ctx->fn(log_ctx->ctx, "\nFound PUBLIC KEY, length = %d bytes\n", (int)pkey->vec.len);
+        }
+
+        (void)ptls_minicrypto_asn1_decode_public_key(pkey, &decode_error, log_ctx);
+
+        if (decode_error != 0) {
+            ret = decode_error;
+        }
+    }
+
+    return ret;
+}
+
+static int ptls_pem_parse_public_key_str(char const *pem_str, ptls_asn1_x509_public_key_t *pkey,
+                                           ptls_minicrypto_log_ctx_t *log_ctx)
+{
+    size_t nb_keys = 0;
+    int ret = ptls_load_pem_objects_str(pem_str, "PUBLIC KEY", &pkey->vec, 1, &nb_keys);
+
+    if (ret == 0) {
+        if (nb_keys != 1) {
+            ret = PTLS_ERROR_PEM_LABEL_NOT_FOUND;
+        }
+    }
+
+    if (ret == 0 && nb_keys == 1) {
+        int decode_error = 0;
+
+        if (log_ctx != NULL) {
+            log_ctx->fn(log_ctx->ctx, "\nFound PUBLIC KEY, length = %d bytes\n", (int)pkey->vec.len);
+        }
+
+        (void)ptls_minicrypto_asn1_decode_public_key(pkey, &decode_error, log_ctx);
+
+        if (decode_error != 0) {
+            ret = decode_error;
+        }
+    }
+
+    return ret;
+}
+
 static int ptls_set_ecdsa_public_key(ptls_context_t* ctx, ptls_asn1_x509_public_key_t *pkey, ptls_minicrypto_log_ctx_t *log_ctx) {
     uint8_t *bytes = pkey->vec.base + pkey->parameters_index;
     size_t bytes_max = pkey->parameters_length;
@@ -531,15 +669,13 @@ static int ptls_set_ecdsa_public_key(ptls_context_t* ctx, ptls_asn1_x509_public_
     return byte_index;
 }
 
-int ptls_minicrypto_load_public_key_vec(ptls_context_t* ctx, ptls_iovec_t vec)
+int ptls_minicrypto_load_public_key_file(ptls_context_t *ctx, char const *pem_fname)
 {
-    ptls_asn1_x509_public_key_t pkey = {vec};
-    int ret = 0;
-
-    ptls_minicrypto_asn1_decode_public_key(&pkey, &ret, NULL);
+    ptls_asn1_x509_public_key_t pkey = {{0}};
+    int ret = ptls_pem_parse_public_key_file(pem_fname, &pkey, NULL);
 
     if (ret != 0)
-        return ret;
+        goto err;
 
     /* Check that this is the expected key type.
      * At this point, the minicrypto library only supports ECDSA keys.
@@ -548,9 +684,59 @@ int ptls_minicrypto_load_public_key_vec(ptls_context_t* ctx, ptls_iovec_t vec)
     if (pkey.algorithm_length != sizeof(ptls_asn1_algorithm_ecdsa) ||
         memcmp(pkey.vec.base + pkey.algorithm_index, ptls_asn1_algorithm_ecdsa, sizeof(ptls_asn1_algorithm_ecdsa)) != 0) {
         ret = -1;
-        return ret;
+        goto err;
     }
 
     ret = ptls_set_ecdsa_public_key(ctx, &pkey, NULL);
+
+err:
+    if (pkey.vec.base) {
+        ptls_clear_memory(pkey.vec.base, pkey.vec.len);
+        free(pkey.vec.base);
+    }
     return ret;
+}
+
+int ptls_minicrypto_load_public_key_str(ptls_context_t *ctx, char const *pem_str)
+{
+    ptls_asn1_x509_public_key_t pkey = {{0}};
+    int ret = ptls_pem_parse_public_key_str(pem_str, &pkey, NULL);
+
+    if (ret != 0)
+        goto err;
+
+    /* Check that this is the expected key type.
+     * At this point, the minicrypto library only supports ECDSA keys.
+     * In theory, we could add support for RSA keys at some point.
+     */
+    if (pkey.algorithm_length != sizeof(ptls_asn1_algorithm_ecdsa) ||
+        memcmp(pkey.vec.base + pkey.algorithm_index, ptls_asn1_algorithm_ecdsa, sizeof(ptls_asn1_algorithm_ecdsa)) != 0) {
+        ret = -1;
+        goto err;
+    }
+
+    ret = ptls_set_ecdsa_public_key(ctx, &pkey, NULL);
+
+err:
+    if (pkey.vec.base) {
+        ptls_clear_memory(pkey.vec.base, pkey.vec.len);
+        free(pkey.vec.base);
+    }
+    return ret;
+}
+
+int ptls_minicrypto_load_public_key_vec(ptls_context_t* ctx, ptls_iovec_t vec)
+{
+    ptls_asn1_x509_public_key_t pkey = {vec};
+
+    /* Check that this is the expected key type.
+     * At this point, the minicrypto library only supports ECDSA keys.
+     * In theory, we could add support for RSA keys at some point.
+     */
+    if (pkey.algorithm_length != sizeof(ptls_asn1_algorithm_ecdsa) ||
+        memcmp(pkey.vec.base + pkey.algorithm_index, ptls_asn1_algorithm_ecdsa, sizeof(ptls_asn1_algorithm_ecdsa)) != 0) {
+        return -1;
+    }
+
+    return ptls_set_ecdsa_public_key(ctx, &pkey, NULL);
 }

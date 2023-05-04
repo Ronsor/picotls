@@ -59,7 +59,7 @@
 #define NO_SANITIZE_ADDRESS
 #endif
 
-#ifdef _WINDOWS
+#if defined(_WINDOWS) && !defined(PICOTLS_MINILIBC)
 #define aligned_alloc(a, s) _aligned_malloc((s), (a))
 #define aligned_free(p) _aligned_free(p)
 #else
