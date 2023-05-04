@@ -32,6 +32,8 @@
 #define OPENSSL_OR_MINICRYPTO(x, y) x
 #endif
 
+#include <stdarg.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -42,9 +44,14 @@
 #include <sys/types.h>
 #include <arpa/nameser.h>
 #include <resolv.h>
-#include <openssl/pem.h>
 #include "picotls/pembase64.h"
+
+#ifndef PICOTLS_NO_OPENSSL
+#include <openssl/pem.h>
 #include "picotls/openssl.h"
+#else
+#include "picotls/minicrypto.h"
+#endif
 
 static inline void load_certificate_chain(ptls_context_t *ctx, const char *fn)
 {

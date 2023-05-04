@@ -82,11 +82,12 @@ static void setup_ptlslog(const char *fn)
 }
 
 static int handle_connection(int sockfd, ptls_context_t *ctx, const char *server_name, const char *input_file,
-                             ptls_handshake_properties_t *hsprop, int request_key_update, int keep_sender_open)
+                             ptls_handshake_properties_t *hsprop, int request_key_update, int keep_sender_open,
+                             int is_server)
 {
     static const int inputfd_is_benchmark = -2;
 
-    ptls_t *tls = ptls_new(ctx, server_name == NULL);
+    ptls_t *tls = ptls_new(ctx, is_server);
     ptls_buffer_t rbuf, encbuf, ptbuf;
     enum { IN_HANDSHAKE, IN_1RTT, IN_SHUTDOWN } state = IN_HANDSHAKE;
     int inputfd = 0, ret = 0;
@@ -115,6 +116,8 @@ static int handle_connection(int sockfd, ptls_context_t *ctx, const char *server
 
     if (server_name != NULL) {
         ptls_set_server_name(tls, server_name, 0);
+    }
+    if (!is_server) {
         if ((ret = ptls_handshake(tls, &encbuf, NULL, NULL, hsprop)) != PTLS_ERROR_IN_PROGRESS) {
             fprintf(stderr, "ptls_handshake:%d\n", ret);
             ret = 1;
@@ -330,7 +333,7 @@ static int run_server(struct sockaddr *sa, socklen_t salen, ptls_context_t *ctx,
     while (1) {
         fprintf(stderr, "waiting for connections\n");
         if ((conn_fd = accept(listen_fd, NULL, 0)) != -1)
-            handle_connection(conn_fd, ctx, NULL, input_file, hsprop, request_key_update, 0);
+            handle_connection(conn_fd, ctx, NULL, input_file, hsprop, request_key_update, 0, 1);
     }
 
     return 0;
@@ -350,7 +353,7 @@ static int run_client(struct sockaddr *sa, socklen_t salen, ptls_context_t *ctx,
         return 1;
     }
 
-    int ret = handle_connection(fd, ctx, server_name, input_file, hsprop, request_key_update, keep_sender_open);
+    int ret = handle_connection(fd, ctx, server_name, input_file, hsprop, request_key_update, keep_sender_open, 0);
     return ret;
 }
 
@@ -362,6 +365,7 @@ static void usage(const char *cmd)
            "  -4                   force IPv4\n"
            "  -6                   force IPv6\n"
            "  -a                   require client authentication\n"
+           "  -z                   disable sending SNI\n"
            "  -b                   enable brotli compression\n"
            "  -B                   benchmark mode for measuring sustained bandwidth. Run\n"
            "                       both endpoints with this option for some time, then kill\n"
@@ -404,9 +408,9 @@ static void usage(const char *cmd)
 #if PTLS_OPENSSL_HAVE_SECP521R1
            ", secp521r1"
 #endif
-#if PTLS_OPENSSL_HAVE_X25519
-           ", X25519"
 #endif
+#if PTLS_OPENSSL_HAVE_X25519 || defined(PTLS_NO_OPENSSL)
+           ", X25519"
 #endif
            "\n"
            "Supported signature algorithms: "
@@ -461,14 +465,14 @@ int main(int argc, char **argv)
     };
     ptls_handshake_properties_t hsprop = {{{{NULL}}}};
     const char *host, *port, *input_file = NULL;
-    int is_server = 0, use_early_data = 0, request_key_update = 0, keep_sender_open = 0, ch;
+    int is_server = 0, no_sni = 0, use_early_data = 0, request_key_update = 0, keep_sender_open = 0, ch;
     struct sockaddr_storage sa;
     socklen_t salen;
     int family = 0;
     int only_verify_pub_key = 0;
     const char *raw_pub_key_file = NULL, *cert_location = NULL;
 
-    while ((ch = getopt(argc, argv, "46abBC:c:i:Ij:k:nN:es:Sr:R:E:K:l:y:vV:h")) != -1) {
+    while ((ch = getopt(argc, argv, "46azbBC:c:i:Ij:k:nN:es:Sr:R:E:K:l:y:vV:h")) != -1) {
         switch (ch) {
         case '4':
             family = AF_INET;
@@ -478,6 +482,9 @@ int main(int argc, char **argv)
             break;
         case 'a':
             ctx.require_client_authentication = 1;
+            break;
+        case 'z':
+            no_sni = 1;
             break;
         case 'b':
 #if PICOTLS_USE_BROTLI
@@ -570,6 +577,7 @@ int main(int argc, char **argv)
     if (algo == NULL && strcasecmp(optarg, #name) == 0)                                                                            \
     algo = (&ptls_minicrypto_##name)
             MATCH(secp256r1);
+            MATCH(x25519);
 #undef MATCH
 #endif
             if (algo == NULL) {
@@ -691,6 +699,9 @@ int main(int argc, char **argv)
 
     if (resolve_address((struct sockaddr *)&sa, &salen, host, port, family, SOCK_STREAM, IPPROTO_TCP) != 0)
         exit(1);
+
+    if (no_sni)
+        host = NULL;
 
     if (is_server) {
         return run_server((struct sockaddr *)&sa, salen, &ctx, input_file, &hsprop, request_key_update);
