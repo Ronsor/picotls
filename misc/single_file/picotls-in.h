@@ -1,3 +1,13 @@
+/*
+ * Single file PicoTLS library
+ *
+ * Copyright (c) 2023 Ronsor Labs, DeNA Co., Ltd., Kazuho Oku.
+ */
+#ifndef picotls_full_h
+#define picotls_full_h
+
+#pragma defines
+
 #include "picotls.h"
 #ifndef PICOTLS_NO_OPENSSL
 #include "picotls/openssl.h"
@@ -13,3 +23,5 @@
 #include "picotls/fusion.h"
 #endif
 #include "picotls/pembase64.h"
+
+#endif

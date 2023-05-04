@@ -4,7 +4,6 @@
  * This file is placed in the public domain or licensed under the CC0 if
  * that's not possible.
  */
-
 #ifndef minilibc_h
 #define minilibc_h
 #include <stddef.h>

@@ -44,6 +44,9 @@ freestanding: Set[str] = set()
 # List of extra defines to add
 defines: List[str] = list()
 
+# Whether to add the defines at a specified marker location
+define_marker: bool = False
+
 # Destination file object (or stdout if no output file was supplied).
 destn: TextIO = sys.stdout
 
@@ -86,6 +89,9 @@ include_regex: Pattern = re.compile(r'^\s*#\s*include\s*"(.+?)"')
 
 # Compiled regex Pattern to handle system file includes
 include_system_regex: Pattern = re.compile(r'^\s*#\s*include\s*\<(.+?)\>')
+
+# Compiled regex Pattern for define marker
+define_marker_regex: Pattern = re.compile(r'^\s*#\s*pragma\s*defines')
 
 # Simple tests to prove include_regex's cases.
 # 
@@ -177,11 +183,16 @@ def add_file(file: Path, file_name: str = None) -> None:
                 line = line.rstrip('\n')
                 match_include = include_regex.match(line);
                 match_include_system = include_system_regex.match(line);
-                if (exclude_system and match_include_system):
-                  inc_name = match_include_system.group(1)
-                  if (inc_name not in freestanding):
-                    write_line(f'/**** skipping system file: {inc_name} ****/')
+                if (define_marker_regex.match(line)):
+                    if define_marker:
+                        for define in defines:
+                            write_line(f'#define {define}')
                     continue
+                if (exclude_system and match_include_system):
+                    inc_name = match_include_system.group(1)
+                    if (inc_name not in freestanding):
+                        write_line(f'/**** skipping system file: {inc_name} ****/')
+                        continue
                 if (match_include):
                     inc_name = match_include.group(1)
                     # We have a quoted include directive so grab the file
@@ -225,6 +236,7 @@ parser.add_argument('-x', '--exclude', action='append', help='file to completely
 parser.add_argument('-k', '--keep', action='append', help='file to exclude from inlining but keep the include directive')
 parser.add_argument('-f', '--freestanding', action='append', help='freestanding header to keep when removing system header includes')
 parser.add_argument('-D', '--define', action='append', help='add extra preprocessor defines')
+parser.add_argument('-m', '--define_marker', action='store_true', help='add defines only at "#pragma defines" marker location')
 parser.add_argument('-s', '--exclude_system', action='store_true', default=False, help='remove system header includes')
 parser.add_argument('-p', '--pragma', action='store_true', default=False, help='keep any "#pragma once" directives (removed by default)')
 parser.add_argument('-o', '--output', type=argparse.FileType('w'), help='output file (otherwise stdout)')
@@ -247,6 +259,7 @@ if args.freestanding is not None:
   freestanding = set(args.freestanding)
 if args.define is not None:
   defines = list(args.define)
+define_marker = args.define_marker
 exclude_system = args.exclude_system
 keep_pragma = args.pragma
 
@@ -254,8 +267,9 @@ keep_pragma = args.pragma
 try:
     if (args.output):
         destn = args.output
-    for define in defines:
-      write_line(f'#define {define}')
+    if not define_marker:
+      for define in defines:
+        write_line(f'#define {define}')
     add_file(args.input)
 finally:
     if (destn):
