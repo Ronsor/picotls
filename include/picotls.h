@@ -1241,6 +1241,7 @@ uint64_t ptls_decode_quicint(const uint8_t **src, const uint8_t *end);
         ptls_decode_assert_block_close((src), end);                                                                                \
     } while (0)
 
+#if PTLS_HAVE_LOG
 #define PTLS_LOG__DO_LOG(module, type, block)                                                                                      \
     do {                                                                                                                           \
         int ptlslog_skip = 0;                                                                                                      \
@@ -1367,6 +1368,16 @@ uint64_t ptls_decode_quicint(const uint8_t **src, const uint8_t *end);
             }                                                                                                                      \
         }                                                                                                                          \
     } while (0)
+#else
+#define PTLS_LOG__DO_LOG(module, type, block)
+#define PTLS_LOG__DO_PUSH_SAFESTR(v)
+#define PTLS_LOG__DO_PUSH_UNSAFESTR(v, l)
+#define PTLS_LOG__DO_PUSH_HEXDUMP(v, l)
+#define PTLS_LOG__DO_PUSH_SIGNED(v)
+#define PTLS_LOG__DO_PUSH_UNSIGNED(v)
+#define PTLS_LOG(module, type, block)
+#define PTLS_LOG_CONN(type, tls, block)
+#endif
 
 /**
  * User API is exposed only when logging is supported by the platform.

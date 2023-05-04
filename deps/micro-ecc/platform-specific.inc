@@ -3,6 +3,8 @@
 #ifndef _UECC_PLATFORM_SPECIFIC_H_
 #define _UECC_PLATFORM_SPECIFIC_H_
 
+#ifndef PICOTLS_MINILIBC
+
 #include "types.h"
 
 #if (defined(_WIN32) || defined(_WIN64))
@@ -90,5 +92,15 @@ static int default_RNG(uint8_t *dest, unsigned size)
 #define default_RNG_defined 1
 
 #endif /* platform */
+
+#else
+
+static int default_RNG(uint8_t* dest, unsigned size)
+{
+    return getrandom(dest, size, 0) == size;
+}
+#define default_RNG_defined 1
+
+#endif
 
 #endif /* _UECC_PLATFORM_SPECIFIC_H_ */

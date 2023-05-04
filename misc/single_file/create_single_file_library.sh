@@ -20,7 +20,8 @@ if python3 -c 'import sys; assert sys.version_info >= (3,8)' 2>/dev/null; then
   ./combine.py -D PICOTLS_SINGLE_FILE \
                -r "$PWD" -r "$PWD/stubs" -r "$PTLS_SRC_ROOT" \
                -r "$PTLS_SRC_ROOT/include" -r "$PTLS_SRC_ROOT/lib/cifra" \
-               -r "$PTLS_SRC_ROOT/deps/cifra/src" -r "$PTLS_SRC_ROOT/deps/micro-ecc" \
+               -r "$PTLS_SRC_ROOT/deps/cifra/src" -r "$PTLS_SRC_ROOT/deps/cifra/src/ext" \
+               -r "$PTLS_SRC_ROOT/deps/micro-ecc" \
                $COMBINE_EXTRA_ARGS -o picotls-full.c picotls-in.c
   ./combine.py -m -D PICOTLS_SINGLE_FILE \
                -r "$PWD" -r "$PWD/stubs" -r "$PTLS_SRC_ROOT/include" \
