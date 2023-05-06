@@ -34,7 +34,7 @@
 #define set_tls_errno(x)  (ctx->tls_errno = (x))
 #define clear_tls_errno() set_tls_errno(0)
 
-int tls_init() {
+int tls_init(void) {
     return 0;
 }
 
@@ -109,11 +109,19 @@ int tls_config_set_ca_mem(struct tls_config *config, const uint8_t* cert, size_t
     return 0;
 }
 
-int tls_config_insecure_noverifycert(struct tls_config* config) { config->enable_verify = 0;  }
-int tls_config_insecure_noverifyname(struct tls_config* config) { config->enable_verify = 0;  }
-int tls_config_insecure_noverifytime(struct tls_config* config) { config->enable_verify = 0;  }
-int tls_config_insecure_verifyifca(struct tls_config* config)   { config->enable_verify = -1; }
-int tls_config_verify(struct tls_config* config)                { config->enable_verify = 1;  }
+int tls_config_insecure_noverifycert(struct tls_config* config) { config->enable_verify = 0; return 0;  }
+int tls_config_insecure_noverifyname(struct tls_config* config) { config->enable_verify = 0; return 0;  }
+int tls_config_insecure_noverifytime(struct tls_config* config) { config->enable_verify = 0; return 0;  }
+int tls_config_insecure_verifyifca(struct tls_config* config)   { config->enable_verify = -1; return 0; }
+int tls_config_verify(struct tls_config* config) {
+    if (!config->ca_cert_file && !config->ca_cert_data) {
+        config->err_str = "tls_config_verify: no CA";
+        return -1;
+    }
+
+    config->enable_verify = 1;
+    return 0;
+}
 
 struct tls_config* tls_config_new(void) {
     struct tls_config* config = malloc(sizeof(struct tls_config));
@@ -164,7 +172,7 @@ struct tls* tls_client(void) {
     struct tls* ctx = malloc(sizeof(struct tls));
     if (!ctx) return NULL;
 
-    tls_init(ctx);
+    tls_ctx_init(ctx);
 
     return ctx;
 }
@@ -181,7 +189,7 @@ int tls_configure(struct tls* ctx, struct tls_config* config) {
     } else if (ctx->config.ca_cert_data) {
         int ret = -1;
         if (ctx->config.ca_cert_data_pem) {
-            ret = ptls_minicrypto_load_public_key_str(&ctx->config.ctx, ctx->config.ca_cert_data);
+            ret = ptls_minicrypto_load_public_key_str(&ctx->config.ctx, (const char*)ctx->config.ca_cert_data);
         } else {
             ptls_iovec_t ca_cert = {ctx->config.ca_cert_data, ctx->config.ca_cert_data_len};
             ret = ptls_minicrypto_load_public_key_vec(&ctx->config.ctx, ca_cert);
@@ -320,7 +328,7 @@ ssize_t tls_read(struct tls* ctx, void* buf, size_t buflen) {
     size_t buffer_size = sizeof(stack_buffer);
 
     if (ctx->recvbuf.off - ctx->recvbuf_pos >= buflen) {
-        goto done;
+        goto copy;
     }
 
     if ((buflen * 2) > buffer_size) {
