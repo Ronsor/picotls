@@ -142,6 +142,8 @@ struct tls_config* tls_config_new(void) {
 }
 
 void tls_config_free(struct tls_config* config) {
+    free(config->ca_cert_file);
+    free(config->ca_cert_data);
     free(config);
 }
 
