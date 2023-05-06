@@ -194,7 +194,7 @@ ssize_t tls_read(struct tls* ctx, void* buf, size_t buflen) {
     clear_errno();
     clear_tls_errno();
 
-    int status = tls_handshake(ctx);
+    ssize_t status = tls_handshake(ctx);
     if (status != 0)
         return status;
 
@@ -252,6 +252,8 @@ copy:
         ptls_buffer_init(&ctx->recvbuf, "", 0);
     }
 
+    status = reallen;
+
 done:
     if (buffer_is_allocated)
         free(buffer);
@@ -284,7 +286,11 @@ ssize_t tls_write(struct tls* ctx, const void* buf, size_t buflen) {
     if (status == TLS_WANT_POLLOUT) {
         ctx->last_buf = buf;
     }
-    return status;
+
+    if (status < 0)
+        return status;
+
+    return buflen;
 }
 
 int tls_close(struct tls* ctx) {
