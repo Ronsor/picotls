@@ -43,6 +43,78 @@ const char* tls_error(struct tls* ctx) {
     return "Unknown error";
 }
 
+const char* tls_config_error(struct tls_config* config) {
+    return config->err_str;
+}
+
+const char* tls_default_ca_cert_file(void) {
+    return tls_default_ca_cert_file_();
+}
+
+/* Note: we have yet to support actual certificate verification.
+   These simply wrap ptls_minicrypto_load_public_key_* for PUBLIC KEY
+   verification only. Only PEM encoding is supported for now.
+
+   Data is lazy-loaded on demand, not at the time these are called. */
+
+int tls_config_set_ca_file(struct tls_config *config, const char *ca_file) {
+    free(config->ca_cert_file); config->ca_cert_file = NULL;
+    free(config->ca_cert_data); config->ca_cert_data = NULL;
+
+    if (!ca_file) {
+        config->err_str = "tls_config_set_ca_file: ca_file == NULL";
+        return -1;
+    }
+
+    int len = strlen(ca_file) + 1;
+    config->ca_cert_file = malloc(len);
+    if (!config->ca_cert_file) {
+        config->err_str = "tls_config_set_ca_file: out of memory";
+        return -1;
+    }
+    memcpy(config->ca_cert_file, ca_file, len);
+
+    config->err_str = NULL;
+    return 0;
+}
+
+int tls_config_set_ca_mem(struct tls_config *config, const uint8_t* cert, size_t len) {
+    free(config->ca_cert_file); config->ca_cert_file = NULL;
+    free(config->ca_cert_data); config->ca_cert_data = NULL;
+
+    if (!cert || !len) {
+        config->err_str = "tls_config_set_ca_mem: cert == NULL || len == 0";
+        return -1;
+    }
+
+    config->ca_cert_data = malloc(len + 1);
+    if (!config->ca_cert_data) {
+        config->err_str = "tls_config_set_ca_mem: out of memory";
+        return -1;
+    }
+
+    memcpy(config->ca_cert_data, cert, len);
+    config->ca_cert_data_len = len;
+    config->ca_cert_data[len] = '\0';
+
+    config->ca_cert_data_pem = 1;
+    for (size_t i = 0; i < len; i++) {
+        uint8_t c = config->ca_cert_data[i];
+        if (c > 0x7F) {
+            config->ca_cert_data_pem = 0;
+        }
+    }
+
+    config->err_str = NULL;
+    return 0;
+}
+
+int tls_config_insecure_noverifycert(struct tls_config* config) { config->enable_verify = 0;  }
+int tls_config_insecure_noverifyname(struct tls_config* config) { config->enable_verify = 0;  }
+int tls_config_insecure_noverifytime(struct tls_config* config) { config->enable_verify = 0;  }
+int tls_config_insecure_verifyifca(struct tls_config* config)   { config->enable_verify = -1; }
+int tls_config_verify(struct tls_config* config)                { config->enable_verify = 1;  }
+
 struct tls_config* tls_config_new(void) {
     struct tls_config* config = malloc(sizeof(struct tls_config));
     if (!config) return NULL;
@@ -55,6 +127,8 @@ struct tls_config* tls_config_new(void) {
     config->ctx.key_exchanges = ptls_minicrypto_key_exchanges;
     config->ctx.cipher_suites = ptls_minicrypto_cipher_suites;
 
+    config->enable_verify = -1;
+
     return config;
 }
 
@@ -62,10 +136,7 @@ void tls_config_free(struct tls_config* config) {
     free(config);
 }
 
-struct tls* tls_client(void) {
-    struct tls* ctx = malloc(sizeof(struct tls));
-    if (!ctx) return NULL;
-
+inline static void tls_ctx_init(struct tls* ctx) {
     memset(&ctx->config, '\0', sizeof(struct tls_config));
     ctx->tls = NULL;
 
@@ -78,6 +149,22 @@ struct tls* tls_client(void) {
     ctx->tls_errno = 0;
 
     ctx->last_buf = 0;
+}
+
+inline static void tls_ctx_deinit(struct tls* ctx) {
+    if (ctx->tls) ptls_free(ctx->tls);
+    if (ctx->config.ctx.verify_certificate)
+        free(ctx->config.ctx.verify_certificate);
+
+    ptls_buffer_dispose(&ctx->recvbuf);
+    ptls_buffer_dispose(&ctx->sendbuf);
+}
+
+struct tls* tls_client(void) {
+    struct tls* ctx = malloc(sizeof(struct tls));
+    if (!ctx) return NULL;
+
+    tls_init(ctx);
 
     return ctx;
 }
@@ -85,15 +172,41 @@ struct tls* tls_client(void) {
 int tls_configure(struct tls* ctx, struct tls_config* config) {
     memcpy(&ctx->config, config, sizeof(struct tls_config));
 
+    if (ctx->config.ca_cert_file) {
+        int ret = ptls_minicrypto_load_public_key_file(&ctx->config.ctx, ctx->config.ca_cert_file);
+        if (ret != 0) {
+            set_tls_errno(PTLS_ERROR_INCOMPATIBLE_KEY);
+            return -1;
+        }
+    } else if (ctx->config.ca_cert_data) {
+        int ret = -1;
+        if (ctx->config.ca_cert_data_pem) {
+            ret = ptls_minicrypto_load_public_key_str(&ctx->config.ctx, ctx->config.ca_cert_data);
+        } else {
+            ptls_iovec_t ca_cert = {ctx->config.ca_cert_data, ctx->config.ca_cert_data_len};
+            ret = ptls_minicrypto_load_public_key_vec(&ctx->config.ctx, ca_cert);
+        }
+        if (ret != 0) {
+            set_tls_errno(PTLS_ERROR_INCOMPATIBLE_KEY);
+            return -1;
+        }
+    }
+
+    if (ctx->config.enable_verify > 0 && !ctx->config.ctx.verify_certificate) {
+        set_tls_errno(PTLS_ERROR_INCOMPATIBLE_KEY);
+        return -1;
+    }
+
     return 0;
 }
 
+void tls_reset(struct tls* ctx) {
+    tls_ctx_deinit(ctx);
+    tls_ctx_init(ctx);
+}
+
 void tls_free(struct tls* ctx) {
-    if (ctx->tls) ptls_free(ctx->tls);
-
-    ptls_buffer_dispose(&ctx->recvbuf);
-    ptls_buffer_dispose(&ctx->sendbuf);
-
+    tls_ctx_deinit(ctx);
     free(ctx);
 }
 
