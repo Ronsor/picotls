@@ -42,10 +42,10 @@ size_t strlen(const char*);
 
 /* assert.h */
 #define assert(cond) \
-  if (!(cond)) { \
-    puts("assertion failed: " #cond " in " __FILE__); \
-    abort(); \
-  }
+    if (!(cond)) { \
+        puts("assertion failed: " #cond " in " __FILE__); \
+        abort(); \
+    }
 
 /* sys/random.h */
 ssize_t getrandom(void*, size_t, unsigned int);

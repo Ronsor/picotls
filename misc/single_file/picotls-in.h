@@ -23,5 +23,8 @@
 #include "picotls/fusion.h"
 #endif
 #include "picotls/pembase64.h"
+#ifdef PICOTLS_COMPAT_LIBTLS
+#include "picotls/compat/tls.h"
+#endif
 
 #endif

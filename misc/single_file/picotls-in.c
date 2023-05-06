@@ -66,3 +66,6 @@
 #endif
 #include "lib/hpke.c"
 #include "lib/picotls.c"
+#ifdef PICOTLS_COMPAT_LIBTLS
+#include "lib/libtls.c"
+#endif
