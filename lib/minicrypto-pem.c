@@ -407,7 +407,8 @@ int ptls_minicrypto_load_private_key_vec(ptls_context_t *ctx, ptls_iovec_t vec)
     ptls_asn1_pkcs8_private_key_t pkey = {vec};
 
     int decode_error = 0;
-    ptls_minicrypto_asn1_decode_private_key(&pkey, &decode_error, NULL);
+
+    (void)ptls_minicrypto_asn1_decode_private_key(&pkey, &decode_error, NULL);
 
     if (decode_error != 0) {
         return decode_error;
@@ -728,6 +729,14 @@ err:
 int ptls_minicrypto_load_public_key_vec(ptls_context_t* ctx, ptls_iovec_t vec)
 {
     ptls_asn1_x509_public_key_t pkey = {vec};
+
+    int decode_error = 0;
+
+    (void)ptls_minicrypto_asn1_decode_public_key(pkey, &decode_error, NULL);
+
+    if (decode_error != 0) {
+        return decode_error;
+    }
 
     /* Check that this is the expected key type.
      * At this point, the minicrypto library only supports ECDSA keys.
