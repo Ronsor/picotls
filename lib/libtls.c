@@ -102,6 +102,7 @@ int tls_config_set_ca_mem(struct tls_config *config, const uint8_t* cert, size_t
         uint8_t c = config->ca_cert_data[i];
         if (c > 0x7F) {
             config->ca_cert_data_pem = 0;
+            break;
         }
     }
 
@@ -178,11 +179,13 @@ struct tls* tls_client(void) {
 }
 
 int tls_configure(struct tls* ctx, struct tls_config* config) {
+    clear_tls_errno();
+
     memcpy(&ctx->config, config, sizeof(struct tls_config));
 
     if (ctx->config.ca_cert_file) {
         int ret = ptls_minicrypto_load_public_key_file(&ctx->config.ctx, ctx->config.ca_cert_file);
-        if (ret != 0) {
+        if (ret < 0) {
             set_tls_errno(PTLS_ERROR_INCOMPATIBLE_KEY);
             return -1;
         }
@@ -194,7 +197,7 @@ int tls_configure(struct tls* ctx, struct tls_config* config) {
             ptls_iovec_t ca_cert = {ctx->config.ca_cert_data, ctx->config.ca_cert_data_len};
             ret = ptls_minicrypto_load_public_key_vec(&ctx->config.ctx, ca_cert);
         }
-        if (ret != 0) {
+        if (ret < 0) {
             set_tls_errno(PTLS_ERROR_INCOMPATIBLE_KEY);
             return -1;
         }
