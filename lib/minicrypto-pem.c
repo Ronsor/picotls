@@ -732,7 +732,7 @@ int ptls_minicrypto_load_public_key_vec(ptls_context_t* ctx, ptls_iovec_t vec)
 
     int decode_error = 0;
 
-    (void)ptls_minicrypto_asn1_decode_public_key(pkey, &decode_error, NULL);
+    (void)ptls_minicrypto_asn1_decode_public_key(&pkey, &decode_error, NULL);
 
     if (decode_error != 0) {
         return decode_error;
