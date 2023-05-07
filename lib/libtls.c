@@ -185,6 +185,8 @@ int tls_configure(struct tls* ctx, struct tls_config* config) {
 
     memcpy(&ctx->config, config, sizeof(struct tls_config));
 
+    if (!ctx->config.enable_verify) return 0;
+
     if (ctx->config.ca_cert_file) {
         int ret = ptls_minicrypto_load_public_key_file(&ctx->config.ctx, ctx->config.ca_cert_file);
         if (ret < 0) {
