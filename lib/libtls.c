@@ -381,6 +381,7 @@ copy:
     ctx->recvbuf_pos += reallen;
 
     if (ctx->recvbuf_pos == ctx->recvbuf.off) {
+        ctx->recvbuf_pos = 0;
         ptls_buffer_dispose(&ctx->recvbuf);
         ptls_buffer_init(&ctx->recvbuf, "", 0);
     }
