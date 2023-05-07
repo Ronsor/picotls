@@ -368,6 +368,11 @@ ssize_t tls_read(struct tls* ctx, void* buf, size_t buflen) {
 copy:
     if (reallen > ctx->recvbuf.off - ctx->recvbuf_pos) {
         reallen = ctx->recvbuf.off - ctx->recvbuf_pos;
+
+        if (reallen == 0) {
+            status = TLS_WANT_POLLIN;
+            goto done;
+        }
     }
 
     memcpy(buf, ctx->recvbuf.base, reallen);
